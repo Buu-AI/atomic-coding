@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Atomic Coding - Live</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="status">
+    <span id="status-dot"></span>
+    <span id="status-text">Connecting...</span>
+  </div>
+  <canvas id="game-canvas"></canvas>
+
+  <!-- Supabase JS for Realtime -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+
+  <script>
+    // =========================================================================
+    // Configuration -- replace with your Supabase project values
+    // =========================================================================
+    const SUPABASE_URL = window.__SUPABASE_URL__ || 'https://dhnwlfbvyffmnnkqtcdw.supabase.co';
+    const SUPABASE_ANON_KEY = window.__SUPABASE_ANON_KEY__ || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRobndsZmJ2eWZmbW5ua3F0Y2R3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA1MjI3NDksImV4cCI6MjA4NjA5ODc0OX0.eH6KEATk-FbWJHe1RbOUUQ0URhFef292Ym9aG1WNtPI';
+    const GAME_NAME = window.__GAME_NAME__ || 'my-game';
+    const STORAGE_BASE = `${SUPABASE_URL}/storage/v1/object/public/bundles/${GAME_NAME}`;
+    const MANIFEST_URL = `${STORAGE_BASE}/manifest.json`;
+    const BUNDLE_URL = `${STORAGE_BASE}/latest.js`;
+
+    // =========================================================================
+    // Status indicator
+    // =========================================================================
+    const statusDot = document.getElementById('status-dot');
+    const statusText = document.getElementById('status-text');
+
+    function setStatus(state, message) {
+      statusDot.className = state; // 'connected', 'loading', 'error'
+      statusText.textContent = message;
+    }
+
+    // =========================================================================
+    // External script loader (supports UMD scripts + ES module addons)
+    // =========================================================================
+    const loadedExternals = new Set();
+    const externalScripts = [];
+    let importMapInjected = false;
+
+    /** Load a single UMD/IIFE external via <script> tag. Skips if already loaded. */
+    function loadExternalScript(ext) {
+      if (loadedExternals.has(ext.cdn_url)) {
+        return Promise.resolve();
+      }
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = ext.cdn_url;
+        script.onload = () => {
+          loadedExternals.add(ext.cdn_url);
+          console.log(`External loaded: ${ext.name} (${ext.global_name})`);
+          resolve();
+        };
+        script.onerror = () => reject(new Error(`Failed to load external: ${ext.name} from ${ext.cdn_url}`));
+        document.head.appendChild(script);
+        externalScripts.push(script);
+      });
+    }
+
+    /**
+     * Create a blob URL shim module that re-exports a window global as ES module.
+     * e.g. for THREE: import { Scene, Mesh, ... } from 'three' → window.THREE
+     */
+    function createGlobalShimUrl(globalName) {
+      const obj = window[globalName];
+      if (!obj) return null;
+      const keys = Object.keys(obj).filter(k => /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(k));
+      const lines = [
+        `const _G = window.${globalName};`,
+        ...keys.map(k => `export const ${k} = _G.${k};`),
+        `export default _G;`,
+      ];
+      return URL.createObjectURL(new Blob([lines.join('\n')], { type: 'application/javascript' }));
+    }
+
+    /**
+     * Load a single ES module external via dynamic import().
+     * Merges named exports into window[global_name].
+     */
+    async function loadExternalModule(ext) {
+      if (loadedExternals.has(ext.cdn_url)) return;
+      const mod = await import(ext.cdn_url);
+      const target = window[ext.global_name] || {};
+      for (const [key, value] of Object.entries(mod)) {
+        if (key !== 'default') target[key] = value;
+      }
+      window[ext.global_name] = target;
+      loadedExternals.add(ext.cdn_url);
+      console.log(`Module external loaded: ${ext.name} → ${ext.global_name}`);
+    }
+
+    /**
+     * Load all externals from manifest.
+     * 1. Script externals load first (UMD via <script>)
+     * 2. Import map is injected for module externals (shims window globals as ES modules)
+     * 3. Module externals load via dynamic import()
+     */
+    async function loadExternals(manifestExternals) {
+      if (!manifestExternals || manifestExternals.length === 0) return;
+
+      const scriptExts = manifestExternals.filter(e => e.load_type !== 'module');
+      const moduleExts = manifestExternals.filter(e => e.load_type === 'module');
+
+      // 1. Load all UMD/IIFE script externals in parallel
+      await Promise.all(scriptExts.map(loadExternalScript));
+
+      // 2. If there are module externals, build + inject import map shims
+      if (moduleExts.length > 0 && !importMapInjected) {
+        const imports = {};
+        for (const ext of moduleExts) {
+          if (ext.module_imports) {
+            for (const [specifier, globalName] of Object.entries(ext.module_imports)) {
+              if (!imports[specifier]) {
+                const shimUrl = createGlobalShimUrl(globalName);
+                if (shimUrl) imports[specifier] = shimUrl;
+              }
+            }
+          }
+        }
+
+        if (Object.keys(imports).length > 0) {
+          const mapScript = document.createElement('script');
+          mapScript.type = 'importmap';
+          mapScript.textContent = JSON.stringify({ imports });
+          document.head.appendChild(mapScript);
+          externalScripts.push(mapScript);
+          importMapInjected = true;
+          console.log('Import map injected:', imports);
+        }
+      }
+
+      // 3. Load module externals sequentially (import map must be settled)
+      for (const ext of moduleExts) {
+        await loadExternalModule(ext);
+      }
+    }
+
+    /** Remove all dynamically loaded external scripts (for full reload). */
+    function clearExternals() {
+      for (const script of externalScripts) {
+        script.remove();
+      }
+      externalScripts.length = 0;
+      loadedExternals.clear();
+      importMapInjected = false;
+    }
+
+    // =========================================================================
+    // Bundle loader
+    // =========================================================================
+    let currentScript = null;
+
+    async function loadBundle() {
+      setStatus('loading', 'Loading bundle...');
+
+      // Remove previous bundle script
+      if (currentScript) {
+        currentScript.remove();
+        currentScript = null;
+      }
+
+      try {
+        // 1. Fetch manifest to know which externals to load
+        const manifestRes = await fetch(`${MANIFEST_URL}?t=${Date.now()}`);
+        let manifest = null;
+
+        if (manifestRes.ok) {
+          manifest = await manifestRes.json();
+        }
+
+        // 2. Load external scripts (Three.js, etc.) before the bundle
+        if (manifest && manifest.externals) {
+          clearExternals();
+          await loadExternals(manifest.externals);
+        }
+
+        // 3. Fetch the bundle
+        const response = await fetch(`${BUNDLE_URL}?t=${Date.now()}`);
+
+        if (!response.ok) {
+          if (response.status === 404) {
+            setStatus('connected', 'No bundle yet. Create some atoms!');
+            return;
+          }
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const code = await response.text();
+
+        if (!code || code.trim().length === 0) {
+          setStatus('connected', 'Empty bundle. Create some atoms!');
+          return;
+        }
+
+        // 4. Inject bundle as script tag
+        currentScript = document.createElement('script');
+        currentScript.textContent = code;
+        document.body.appendChild(currentScript);
+
+        const extCount = manifest ? (manifest.externals || []).length : 0;
+        setStatus('connected', `Bundle loaded (${extCount} externals, ${new Date().toLocaleTimeString()})`);
+      } catch (err) {
+        console.error('Failed to load bundle:', err);
+        setStatus('error', `Load failed: ${err.message}`);
+      }
+    }
+
+    // =========================================================================
+    // Realtime: auto-reload on new successful builds
+    // =========================================================================
+    function setupRealtime() {
+      if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
+        setStatus('error', 'Configure SUPABASE_URL and SUPABASE_ANON_KEY');
+        return;
+      }
+
+      const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+      supabase
+        .channel('builds')
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'builds',
+            filter: 'status=eq.success',
+          },
+          (payload) => {
+            console.log('New successful build detected:', payload);
+            loadBundle();
+          },
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            setStatus('connected', 'Watching for builds...');
+          }
+        });
+    }
+
+    // =========================================================================
+    // Init
+    // =========================================================================
+    setupRealtime();
+    loadBundle();
+  </script>
+</body>
+</html>

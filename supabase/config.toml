@@ -1,0 +1,32 @@
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage"]
+extra_search_path = ["public", "extensions"]
+
+[db]
+port = 54322
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+
+[storage]
+enabled = true
+
+[functions.api]
+verify_jwt = false
+
+[functions.mcp-server]
+verify_jwt = false
+
+[functions.buu-mcp]
+verify_jwt = false
+
+[functions.rebuild-bundle]
+verify_jwt = false
