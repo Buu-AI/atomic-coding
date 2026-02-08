@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Game Player</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0a; font-family: monospace; }
+    #game-canvas { display: block; width: 100%; height: 100%; }
+    #status {
+      position: fixed; top: 8px; right: 8px;
+      display: flex; align-items: center; gap: 6px;
+      padding: 4px 10px; background: rgba(10,10,10,0.85);
+      backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px; z-index: 1000; font-size: 10px;
+      color: rgba(255,255,255,0.5); user-select: none;
+    }
+    #status-dot {
+      width: 6px; height: 6px; border-radius: 50%; background: #555;
+      transition: background 0.3s;
+    }
+    #status-dot.connected { background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,0.5); }
+    #status-dot.loading { background: #f59e0b; box-shadow: 0 0 6px rgba(245,158,11,0.5); animation: pulse 1s infinite; }
+    #status-dot.error { background: #ef4444; box-shadow: 0 0 6px rgba(239,68,68,0.5); }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+  </style>
+</head>
+<body>
+  <div id="status">
+    <span id="status-dot"></span>
+    <span id="status-text">Connecting...</span>
+  </div>
+  <canvas id="game-canvas"></canvas>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+
+  <script>
+    // Read config from URL params
+    const params = new URLSearchParams(window.location.search);
+    const SUPABASE_URL = params.get('supabaseUrl') || '';
+    const SUPABASE_ANON_KEY = params.get('supabaseKey') || '';
+    const GAME_NAME = params.get('game') || 'my-game';
+    const STORAGE_BASE = `${SUPABASE_URL}/storage/v1/object/public/bundles/${GAME_NAME}`;
+    const MANIFEST_URL = `${STORAGE_BASE}/manifest.json`;
+    const BUNDLE_URL = `${STORAGE_BASE}/latest.js`;
+
+    const statusDot = document.getElementById('status-dot');
+    const statusText = document.getElementById('status-text');
+
+    function setStatus(state, message) {
+      statusDot.className = state;
+      statusText.textContent = message;
+    }
+
+    const loadedExternals = new Set();
+    const externalScripts = [];
+    let importMapInjected = false;
+
+    function loadExternalScript(ext) {
+      if (loadedExternals.has(ext.cdn_url)) return Promise.resolve();
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = ext.cdn_url;
+        script.onload = () => { loadedExternals.add(ext.cdn_url); resolve(); };
+        script.onerror = () => reject(new Error(`Failed to load: ${ext.name}`));
+        document.head.appendChild(script);
+        externalScripts.push(script);
+      });
+    }
+
+    function createGlobalShimUrl(globalName) {
+      const obj = window[globalName];
+      if (!obj) return null;
+      const keys = Object.keys(obj).filter(k => /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(k));
+      const lines = [`const _G = window.${globalName};`, ...keys.map(k => `export const ${k} = _G.${k};`), `export default _G;`];
+      return URL.createObjectURL(new Blob([lines.join('\n')], { type: 'application/javascript' }));
+    }
+
+    async function loadExternalModule(ext) {
+      if (loadedExternals.has(ext.cdn_url)) return;
+      const mod = await import(ext.cdn_url);
+      const target = window[ext.global_name] || {};
+      for (const [key, value] of Object.entries(mod)) {
+        if (key !== 'default') target[key] = value;
+      }
+      window[ext.global_name] = target;
+      loadedExternals.add(ext.cdn_url);
+    }
+
+    async function loadExternals(manifestExternals) {
+      if (!manifestExternals || manifestExternals.length === 0) return;
+      const scriptExts = manifestExternals.filter(e => e.load_type !== 'module');
+      const moduleExts = manifestExternals.filter(e => e.load_type === 'module');
+      await Promise.all(scriptExts.map(loadExternalScript));
+      if (moduleExts.length > 0 && !importMapInjected) {
+        const imports = {};
+        for (const ext of moduleExts) {
+          if (ext.module_imports) {
+            for (const [specifier, globalName] of Object.entries(ext.module_imports)) {
+              if (!imports[specifier]) {
+                const shimUrl = createGlobalShimUrl(globalName);
+                if (shimUrl) imports[specifier] = shimUrl;
+              }
+            }
+          }
+        }
+        if (Object.keys(imports).length > 0) {
+          const mapScript = document.createElement('script');
+          mapScript.type = 'importmap';
+          mapScript.textContent = JSON.stringify({ imports });
+          document.head.appendChild(mapScript);
+          externalScripts.push(mapScript);
+          importMapInjected = true;
+        }
+      }
+      for (const ext of moduleExts) await loadExternalModule(ext);
+    }
+
+    function clearExternals() {
+      for (const s of externalScripts) s.remove();
+      externalScripts.length = 0;
+      loadedExternals.clear();
+      importMapInjected = false;
+    }
+
+    let currentScript = null;
+
+    async function loadBundle() {
+      setStatus('loading', 'Loading bundle...');
+      if (currentScript) { currentScript.remove(); currentScript = null; }
+      try {
+        const manifestRes = await fetch(`${MANIFEST_URL}?t=${Date.now()}`);
+        let manifest = null;
+        if (manifestRes.ok) manifest = await manifestRes.json();
+        if (manifest && manifest.externals) { clearExternals(); await loadExternals(manifest.externals); }
+        const response = await fetch(`${BUNDLE_URL}?t=${Date.now()}`);
+        if (!response.ok) {
+          if (response.status === 404) { setStatus('connected', 'No bundle yet. Create some atoms!'); return; }
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const code = await response.text();
+        if (!code || code.trim().length === 0) { setStatus('connected', 'Empty bundle. Create some atoms!'); return; }
+        currentScript = document.createElement('script');
+        currentScript.textContent = code;
+        document.body.appendChild(currentScript);
+        const extCount = manifest ? (manifest.externals || []).length : 0;
+        setStatus('connected', `Loaded (${extCount} ext, ${new Date().toLocaleTimeString()})`);
+      } catch (err) {
+        console.error('Failed to load bundle:', err);
+        setStatus('error', `Load failed: ${err.message}`);
+      }
+    }
+
+    function setupRealtime() {
+      if (!SUPABASE_URL) { setStatus('error', 'No Supabase URL'); return; }
+      const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      supabase.channel('builds')
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'builds', filter: 'status=eq.success' },
+          () => loadBundle())
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') setStatus('connected', 'Watching for builds...');
+        });
+    }
+
+    setupRealtime();
+    loadBundle();
+  </script>
+</body>
+</html>

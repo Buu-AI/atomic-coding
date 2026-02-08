@@ -62,7 +62,7 @@ function createMcpServer(apiKey: string, apiUrl: string): McpServer {
             isPublic: true,
             texture: "fast",
             numberOfModels: 1,
-            modelType: "buu_v2",
+            modelType: "buu_v1",
           },
         });
 

@@ -6,6 +6,7 @@ import * as games from "../_shared/services/games.ts";
 import * as atoms from "../_shared/services/atoms.ts";
 import * as builds from "../_shared/services/builds.ts";
 import * as externals from "../_shared/services/externals.ts";
+import * as chat from "../_shared/services/chat.ts";
 
 // =============================================================================
 // App
@@ -273,6 +274,79 @@ app.post("/games/:name/builds/:id/rollback", async (c) => {
     const buildId = c.req.param("id");
     const result = await builds.rollbackBuild(gameId, buildId);
     return c.json(result);
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 400);
+  }
+});
+
+// =============================================================================
+// Chat Sessions (scoped to game)
+// =============================================================================
+
+/** GET /games/:name/chat/sessions -- list sessions */
+app.get("/games/:name/chat/sessions", async (c) => {
+  try {
+    const gameId = c.get("gameId") as string;
+    const limit = parseInt(c.req.query("limit") || "20", 10);
+    const sessions = await chat.listSessions(gameId, limit);
+    return c.json(sessions);
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 500);
+  }
+});
+
+/** POST /games/:name/chat/sessions -- create session */
+app.post("/games/:name/chat/sessions", async (c) => {
+  try {
+    const gameId = c.get("gameId") as string;
+    const body = await c.req.json();
+    const session = await chat.createSession(gameId, body.model, body.title);
+    return c.json(session, 201);
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 400);
+  }
+});
+
+/** DELETE /games/:name/chat/sessions/:sessionId -- delete session */
+app.delete("/games/:name/chat/sessions/:sessionId", async (c) => {
+  try {
+    await chat.deleteSession(c.req.param("sessionId"));
+    return c.json({ deleted: c.req.param("sessionId") });
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 400);
+  }
+});
+
+/** GET /games/:name/chat/sessions/:sessionId/messages -- get messages */
+app.get("/games/:name/chat/sessions/:sessionId/messages", async (c) => {
+  try {
+    const messages = await chat.getMessages(c.req.param("sessionId"));
+    return c.json(messages);
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 500);
+  }
+});
+
+/** POST /games/:name/chat/sessions/:sessionId/messages -- save messages */
+app.post("/games/:name/chat/sessions/:sessionId/messages", async (c) => {
+  try {
+    const body = await c.req.json();
+    if (!body.messages || !Array.isArray(body.messages)) {
+      return c.json({ error: "messages must be an array" }, 400);
+    }
+    await chat.saveMessages(c.req.param("sessionId"), body.messages);
+
+    // Auto-set title from first user message if not set
+    const session = await chat.getSession(c.req.param("sessionId"));
+    if (!session.title) {
+      const userMsg = body.messages.find((m: { role: string }) => m.role === "user");
+      if (userMsg?.parts?.[0]?.text) {
+        const title = userMsg.parts[0].text.slice(0, 100);
+        await chat.updateSessionTitle(c.req.param("sessionId"), title);
+      }
+    }
+
+    return c.json({ saved: body.messages.length });
   } catch (err) {
     return c.json({ error: (err as Error).message }, 400);
   }
