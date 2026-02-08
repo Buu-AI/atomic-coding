@@ -58,7 +58,12 @@ function createMcpServer(apiKey: string, apiUrl: string): McpServer {
       try {
         const result = await callBuu("/v1/tools/generate-model-from-prompt", {
           prompt,
-          options: { isPublic: true },
+          options: {
+            isPublic: true,
+            texture: "fast",
+            numberOfModels: 1,
+            modelType: "buu_v2",
+          },
         });
 
         return {
@@ -90,15 +95,16 @@ function createMcpServer(apiKey: string, apiUrl: string): McpServer {
       inputSchema: {
         prompt: z.string().describe("Text description of the world to generate"),
         display_name: z.string().optional().describe("Display name for the world"),
-        model_type: z.string().optional().describe("Model type for generation"),
         seed: z.number().optional().describe("Random seed for reproducibility"),
       },
     },
     async ({ prompt, display_name, model_type, seed }) => {
       try {
-        const body: Record<string, unknown> = { textPrompt: prompt };
+        const body: Record<string, unknown> = {
+          textPrompt: prompt,
+          modelType: "world-v1-micro",
+        };
         if (display_name) body.displayName = display_name;
-        if (model_type) body.modelType = model_type;
         if (seed !== undefined) body.seed = seed;
 
         const result = await callBuu("/v1/tools/generate-world-from-prompt", body);
