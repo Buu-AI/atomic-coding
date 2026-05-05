@@ -25,3 +25,5 @@ Thumbs.db
 .agents/
 .cursor/
 .vercel
+
+.claude/

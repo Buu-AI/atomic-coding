@@ -169,6 +169,18 @@ Deno.serve(async (req: Request) => {
     for (const a of normalizedAtoms) {
       atomMap.set(a.name, a);
     }
+
+    const missingRefs = findMissingAtomReferences(normalizedAtoms, atomMap);
+    if (missingRefs.length > 0) {
+      const detail = missingRefs
+        .map((m) => `${m.atom} -> ${m.missing.join(", ")}`)
+        .join("; ")
+      throw new Error(
+        `Bundle would have unresolved atom references: ${detail}. ` +
+          "Create or rename the missing atoms before rebuilding.",
+      );
+    }
+
     const timestamp = new Date().toISOString();
 
     const sections = sortedNames.map((name) => {
@@ -375,4 +387,37 @@ function normalizeAtomCode(code: string, runtime: "phaser" | "three"): string {
 
 function hasBlockedRuntimePattern(code: string): boolean {
   return SCRIPT_INJECTION_RE.test(code) || LOCKDOWN_RE.test(code);
+}
+
+const SNAKE_CALL_RE = /\b([a-z][a-z0-9]*(?:_[a-z0-9]+)+)\s*\(/g;
+const STRING_OR_COMMENT_RE =
+  /\/\*[\s\S]*?\*\/|\/\/[^\n]*|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`/g;
+
+/**
+ * Detect snake_case function calls inside an atom that don't resolve to a
+ * defined atom. Only multi-word snake_case names are flagged (must contain `_`)
+ * so JS built-ins like `setTimeout` or `requestAnimationFrame` aren't matched.
+ * Strings and comments are stripped before scanning to avoid false positives.
+ */
+function findMissingAtomReferences(
+  atoms: { name: string; code: string }[],
+  atomMap: Map<string, { name: string }>,
+): { atom: string; missing: string[] }[] {
+  const results: { atom: string; missing: string[] }[] = [];
+  for (const atom of atoms) {
+    const stripped = atom.code.replace(STRING_OR_COMMENT_RE, "");
+    const missing = new Set<string>();
+    let match: RegExpExecArray | null;
+    SNAKE_CALL_RE.lastIndex = 0;
+    while ((match = SNAKE_CALL_RE.exec(stripped)) !== null) {
+      const name = match[1];
+      if (name === atom.name) continue;
+      if (atomMap.has(name)) continue;
+      missing.add(name);
+    }
+    if (missing.size > 0) {
+      results.push({ atom: atom.name, missing: [...missing] });
+    }
+  }
+  return results;
 }
