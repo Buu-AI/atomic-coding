@@ -11,16 +11,18 @@ export interface AuthUser {
   userId: string;
 }
 
-const CLERK_JWKS_URL = Deno.env.get("CLERK_JWKS_URL") ?? "";
+const PRIVY_APP_ID = Deno.env.get("PRIVY_APP_ID") ?? "";
 
 let jwks: ReturnType<typeof jose.createRemoteJWKSet> | null = null;
 
 function getJWKS() {
   if (!jwks) {
-    if (!CLERK_JWKS_URL) {
-      throw new Error("Missing CLERK_JWKS_URL environment variable");
+    if (!PRIVY_APP_ID) {
+      throw new Error("Missing PRIVY_APP_ID environment variable");
     }
-    jwks = jose.createRemoteJWKSet(new URL(CLERK_JWKS_URL));
+    jwks = jose.createRemoteJWKSet(
+      new URL(`https://auth.privy.io/api/v1/apps/${PRIVY_APP_ID}/jwks.json`),
+    );
   }
   return jwks;
 }
@@ -41,7 +43,10 @@ export async function verifyAuthToken(req: Request): Promise<AuthUser | null> {
 
   try {
     const keySet = getJWKS();
-    const { payload } = await jose.jwtVerify(token, keySet);
+    const { payload } = await jose.jwtVerify(token, keySet, {
+      issuer: "privy.io",
+      audience: PRIVY_APP_ID,
+    });
     if (!payload.sub) return null;
     return { userId: payload.sub };
   } catch (err) {
