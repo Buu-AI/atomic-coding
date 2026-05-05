@@ -82,17 +82,16 @@ async function resolveAuthHeaders(
     }
   }
 
-  // Server-side: use Clerk session token when no client getter is available
-  if (!headers.Authorization && typeof window === "undefined") {
+  // Client-side fallback: use Privy access token when no client getter is available
+  if (!headers.Authorization && typeof window !== "undefined") {
     try {
-      const { auth } = await import("@clerk/nextjs/server");
-      const session = await auth();
-      const token = await session.getToken();
+      const { getAccessToken } = await import("@privy-io/react-auth");
+      const token = await getAccessToken();
       if (token) {
         headers.Authorization = `Bearer ${token}`;
       }
     } catch {
-      // Not in a request context or Clerk not available
+      // Privy not initialized or token retrieval failed
     }
   }
 
@@ -124,8 +123,8 @@ async function apiFetch<T>(
     headers,
   });
 
-  // On 401, force a fresh token and retry once — Clerk JWTs are short-lived
-  // and can expire between fetch and server verification.
+  // On 401, force a fresh token and retry once — Privy access tokens are
+  // short-lived (~1h) and can expire between fetch and server verification.
   if (res.status === 401) {
     delete headers.Authorization;
     await resolveAuthHeaders(headers);
