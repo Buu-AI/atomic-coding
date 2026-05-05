@@ -16,10 +16,6 @@ export const SUPABASE_ANON_KEY =
 
 export const API_BASE = `${SUPABASE_URL}/functions/v1/api`;
 
-// ── Auth ──────────────────────────────────────────────────────────────────────
-
-export const CLERK_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ?? "";
-
 // ── Buu ──────────────────────────────────────────────────────────────────────
 
 export const BUU_API_URL =
