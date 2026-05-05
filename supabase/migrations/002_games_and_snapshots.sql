@@ -2,6 +2,8 @@
 -- Migration 002: Games, game-scoped atoms/builds, and build snapshots
 -- =============================================================================
 
+SET search_path = public, extensions;
+
 -- 1. Create games table
 -- =============================================================================
 CREATE TABLE games (

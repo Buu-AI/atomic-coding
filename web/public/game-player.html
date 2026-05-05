@@ -813,8 +813,17 @@
         const code = await response.text();
         if (!code || code.trim().length === 0) { setStatus('connected', `Empty ${runtimeLabel} bundle. Create some atoms!`); return; }
         currentScript = document.createElement('script');
-        currentScript.textContent = code;
+        window.__GAME_BOOT_ERROR__ = null;
+        currentScript.textContent =
+          'try {\n' + code + '\n} catch (e) { window.__GAME_BOOT_ERROR__ = e; }';
         document.body.appendChild(currentScript);
+        const bootError = window.__GAME_BOOT_ERROR__;
+        if (bootError) {
+          console.error('Bundle runtime error:', bootError);
+          const msg = (bootError && bootError.message) || String(bootError);
+          setStatus('error', `Runtime error: ${msg}`);
+          return;
+        }
         const extCount = manifestExternals.length;
         setStatus('connected', `${runtimeLabel} live (${extCount} ext, ${new Date().toLocaleTimeString()})`);
       } catch (err) {

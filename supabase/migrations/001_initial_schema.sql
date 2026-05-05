@@ -4,8 +4,13 @@
 
 -- 1. Extensions
 -- =============================================================================
-CREATE EXTENSION IF NOT EXISTS vector SCHEMA public;
+CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA extensions;
 CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
+
+-- Ensure unqualified `vector` type/operator references resolve in this migration
+-- and downstream ones. Supabase installs pgvector into the `extensions` schema,
+-- which is not on the default search_path during migration runs.
+SET search_path = public, extensions;
 
 -- 2. Type System (JS primitives only)
 -- =============================================================================

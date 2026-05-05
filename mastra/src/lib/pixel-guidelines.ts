@@ -1,10 +1,11 @@
 /**
- * Default image generation model for Vertex AI.
- * Uses Gemini's native image generation via the generateContent endpoint.
- * Override via VERTEX_IMAGE_MODEL env var if needed.
+ * Default image generation model: Nano Banana 2 (google/gemini-3.1-flash-image-preview)
+ * A deep, capable image model on OpenRouter optimized for complex sprite and UI generation.
+ * Override via OPENROUTER_IMAGE_MODEL env var if needed.
  */
 export const DEFAULT_PIXEL_IMAGE_MODEL =
-  process.env.VERTEX_IMAGE_MODEL ?? "gemini-2.0-flash-exp";
+  process.env.OPENROUTER_IMAGE_MODEL ??
+  "google/gemini-3.1-flash-image-preview";
 
 export const PIXEL_UI_POLISH_RULES = [
   "Keep gameplay readability above decoration. Primary stats and primary actions must stay obvious at a glance.",
@@ -153,7 +154,7 @@ export function buildPixelSystemPrompt(): string {
     '  "status": "completed",',
     '  "art_direction": "Pixel art, 32x32 base grid, warm palette, black outlines, top-left lighting",',
     '  "assets_created": [{ "name": "player_idle", "type": "sprite", "url_or_base64": "...", "processed_url": null, "background_removed": false, "delivery_kind": "isolated_sprite", "processing_steps": ["generated"], "prompt_used": "...", "revised_prompt": null, "aspect_ratio": "1:1", "image_size": "1K", "polish_notes": ["clear silhouette", "animation-ready neutral pose"], "source_model": "google/gemini-3.1-flash-image-preview" }],',
-    '  "generation_model": "sprite-sheet-creator + google-vertex/gemini-3.1-flash-image-preview",',
+    '  "generation_model": "sprite-sheet-creator + openrouter/google/gemini-3.1-flash-image-preview",',
     '  "sprite_manifest": [{ "name": "player_idle", "category": "character", "dimensions_hint": "32x32 base", "animation_ready": true }],',
     '  "animation_sets": [{ "stable_asset_id": "player", "character_prompt": "Agile platform hero with scarf", "reference_mode": "image_to_image", "reference_image_url": "https://...", "character_seed_url": "https://...", "animations": [{ "animation": "idle", "raw_sheet_url": "https://...", "processed_sheet_url": "https://...", "frame_manifest_url": "https://...", "phaser_descriptor_url": "https://...", "cols": 2, "rows": 2, "vertical_dividers": [50], "horizontal_dividers": [50], "frames": [{ "index": 0, "x": 0, "y": 0, "width": 256, "height": 256, "bounds": { "x": 32, "y": 28, "width": 148, "height": 196 } }] }] }],',
     '  "background_sets": [{ "stable_asset_id": "forest_backdrop", "layers": [{ "variant": "layer_1", "url": "https://...", "width": 1792, "height": 768 }] }],',

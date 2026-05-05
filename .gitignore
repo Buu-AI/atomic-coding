@@ -1,11 +1,14 @@
 # Dependencies
 node_modules/
+node_modules_old/
+web/node_modules_old/
 
 # Environment
 .env
 .env.local
 .env.development
 .env.development.local
+.env.production
 
 # Supabase local
 supabase/.temp/
@@ -21,4 +24,6 @@ Thumbs.db
 
 .agents/
 .cursor/
+.vercel
+
 .claude/
