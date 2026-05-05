@@ -214,7 +214,7 @@ const AGENT_META: Record<
     role: "Orchestrator, scope parser, delivery aggregator",
     description:
       "Jarvis owns intake and closeout. It plans the work, coordinates the task graph, and turns pipeline output into next actions.",
-    model: "google-vertex/gemini-3.1-pro",
+    model: "openrouter/google/gemini-3.1-pro-preview",
     toolAccess: [
       "get-code-structure",
       "read-atoms",
@@ -238,7 +238,7 @@ const AGENT_META: Record<
     role: "Primary implementation agent for atom creation and repair",
     description:
       "Forge handles the heavy code-writing path: boilerplate loading, bottom-up atom composition, and repair after validation failures.",
-    model: "google-vertex/gemini-3.1-pro",
+    model: "openrouter/google/gemini-3.1-pro-preview",
     toolAccess: [
       "get-code-structure",
       "read-atoms",
@@ -265,7 +265,7 @@ const AGENT_META: Record<
     role: "Visual design system and asset generation specialist",
     description:
       "Pixel translates scope into a cohesive design system, then generates polished UI packs, sprites, textures, and overlays.",
-    model: "google-vertex/gemini-3.1-flash-lite",
+    model: "openrouter/google/gemini-3.1-flash-lite-preview",
     toolAccess: [
       "get-code-structure",
       "read-atoms",
@@ -289,7 +289,7 @@ const AGENT_META: Record<
     role: "Validation author, QA gate, and regression auditor",
     description:
       "Checker stays read-only and enforces structure, score-system compliance, and final regression confidence before delivery.",
-    model: "google-vertex/gemini-3.1-flash-lite",
+    model: "openrouter/google/gemini-3.1-flash-lite-preview",
     toolAccess: [
       "get-code-structure",
       "read-atoms",
@@ -343,7 +343,7 @@ const AGENT_SERVICES: Record<ArchitectureAgentId, ServiceTemplate[]> = {
       label: "Gemini 3.1 Pro",
       icon: "AI",
       category: "model",
-      runtimeType: "google-vertex/gemini-3.1-pro",
+      runtimeType: "openrouter/google/gemini-3.1-pro-preview",
       description:
         "Jarvis runs on Gemini 3.1 Pro via Vertex AI for planning, scope analysis, and high-level delivery output.",
       notes: [
@@ -397,7 +397,7 @@ const AGENT_SERVICES: Record<ArchitectureAgentId, ServiceTemplate[]> = {
       label: "Gemini 3.1 Pro",
       icon: "AI",
       category: "model",
-      runtimeType: "google-vertex/gemini-3.1-pro",
+      runtimeType: "openrouter/google/gemini-3.1-pro-preview",
       description:
         "Forge uses Gemini 3.1 Pro via Vertex AI as the reasoning model behind the write-heavy implementation path.",
       notes: [
@@ -435,7 +435,7 @@ const AGENT_SERVICES: Record<ArchitectureAgentId, ServiceTemplate[]> = {
       edgeIntensity: "medium",
     },
     {
-      id: "pixel-vertex-ai-api",
+      id: "pixel-openrouter-api",
       label: "Vertex AI Image API",
       icon: "VX",
       category: "integration",
@@ -506,7 +506,7 @@ const AGENT_SERVICES: Record<ArchitectureAgentId, ServiceTemplate[]> = {
       label: "Gemini 3.1 Flash Lite",
       icon: "AI",
       category: "model",
-      runtimeType: "google-vertex/gemini-3.1-flash-lite",
+      runtimeType: "openrouter/google/gemini-3.1-flash-lite-preview",
       description:
         "Checker runs on Gemini 3.1 Flash Lite via Vertex AI for read-only QA and validation reporting.",
       notes: [

@@ -1331,7 +1331,7 @@ async function processTask7Output(args: {
           layout_version: 1,
           runtime_ready: true,
           editor_only: false,
-          source_service: asset.source_model ?? "google-vertex",
+          source_service: asset.source_model ?? "openrouter",
           metadata: {
             name: asset.name,
             type: asset.type,
@@ -1371,7 +1371,7 @@ async function processTask7Output(args: {
             layout_version: 1,
             runtime_ready: true,
             editor_only: false,
-            source_service: asset.source_model ?? "google-vertex",
+            source_service: asset.source_model ?? "openrouter",
             metadata: {
               name: asset.name,
               type: asset.type,
@@ -1526,7 +1526,7 @@ async function processTask8Output(args: {
         layout_version: 1,
         runtime_ready: true,
         editor_only: false,
-        source_service: asset.source_model ?? "google-vertex",
+        source_service: asset.source_model ?? "openrouter",
         metadata: {
           name: asset.name,
           type: asset.type,

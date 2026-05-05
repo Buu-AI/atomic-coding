@@ -48,7 +48,7 @@ describe("buildPixelManifestDocument", () => {
       task7Output: {
         design_system: { palette: { primary: "#fff" } },
         art_direction: "Cozy arcade",
-        generation_model: "vertex",
+        generation_model: "openrouter",
       },
       task8Output: {
         art_direction: "Cozy arcade sprites",
