@@ -11,10 +11,10 @@ import {
 } from "./app-auth-context";
 import { ensureUserProfile } from "./user-profile";
 
-const ClerkAuthProvider = dynamic(
+const PrivyAuthProvider = dynamic(
   () =>
-    import("./clerk-auth-provider").then((module) => ({
-      default: module.ClerkAuthProvider,
+    import("./privy-auth-provider").then((module) => ({
+      default: module.PrivyAuthProvider,
     })),
   {
     ssr: false,
@@ -22,8 +22,7 @@ const ClerkAuthProvider = dynamic(
   },
 );
 
-const CLERK_PUBLISHABLE_KEY =
-  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ?? "";
+const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? "";
 const DEV_AUTH_BYPASS = process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS === "true";
 const DEV_AUTH_BYPASS_USER_ID =
   process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS_USER_ID ?? "did:dev:local-user";
@@ -74,17 +73,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   // During static generation the key may not be set; render children without auth
-  if (!CLERK_PUBLISHABLE_KEY) {
+  if (!PRIVY_APP_ID) {
     return (
       <AppAuthProvider value={defaultAuthValue}>{children}</AppAuthProvider>
     );
   }
 
-  return (
-    <ClerkAuthProvider publishableKey={CLERK_PUBLISHABLE_KEY}>
-      {children}
-    </ClerkAuthProvider>
-  );
+  return <PrivyAuthProvider>{children}</PrivyAuthProvider>;
 }
 
 export { useAppAuth } from "./app-auth-context";
