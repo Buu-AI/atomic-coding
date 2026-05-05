@@ -1,38 +1,39 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
-import type { NextFetchEvent, NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { isDevAuthBypassEnabled } from "@/lib/dev-auth";
 
-const isPublicRoute = createRouteMatcher([
-  "/",
-  "/login(.*)",
-  "/api/(.*)",
-  "/play/(.*)",
-  "/game-player.html",
-  "/games/:name/board",
-  "/architecture",
-]);
+const PUBLIC_ROUTE_PATTERNS = [
+  /^\/$/,
+  /^\/login(?:\/.*)?$/,
+  /^\/api\/.*$/,
+  /^\/play\/.*$/,
+  /^\/game-player\.html$/,
+  /^\/games\/[^/]+\/board$/,
+  /^\/architecture$/,
+];
 
-const clerkProxy = clerkMiddleware(async (auth, request) => {
-  if (!isPublicRoute(request)) {
-    const { userId } = await auth();
-    if (!userId) {
-      // Redirect to our own /login page instead of Clerk's hosted sign-in.
-      // auth.protect() redirects to accounts.atomic.fun which causes CORS
-      // errors when the browser follows the redirect from RSC fetch requests.
-      const loginUrl = new URL("/login", request.url);
-      loginUrl.searchParams.set("redirect_url", request.nextUrl.pathname);
-      return NextResponse.redirect(loginUrl);
-    }
-  }
-});
+function isPublicRoute(pathname: string): boolean {
+  return PUBLIC_ROUTE_PATTERNS.some((pattern) => pattern.test(pathname));
+}
 
-export default function proxy(request: NextRequest, event: NextFetchEvent) {
+export default function proxy(request: NextRequest) {
   if (isDevAuthBypassEnabled(request.nextUrl.hostname)) {
     return NextResponse.next();
   }
 
-  return clerkProxy(request, event);
+  const { pathname } = request.nextUrl;
+  if (isPublicRoute(pathname)) {
+    return NextResponse.next();
+  }
+
+  const privyToken = request.cookies.get("privy-token")?.value;
+  if (!privyToken) {
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("redirect_url", pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  return NextResponse.next();
 }
 
 export const config = {
