@@ -154,7 +154,7 @@ export function buildPixelSystemPrompt(): string {
     '  "status": "completed",',
     '  "art_direction": "Pixel art, 32x32 base grid, warm palette, black outlines, top-left lighting",',
     '  "assets_created": [{ "name": "player_idle", "type": "sprite", "url_or_base64": "...", "processed_url": null, "background_removed": false, "delivery_kind": "isolated_sprite", "processing_steps": ["generated"], "prompt_used": "...", "revised_prompt": null, "aspect_ratio": "1:1", "image_size": "1K", "polish_notes": ["clear silhouette", "animation-ready neutral pose"], "source_model": "google/gemini-3.1-flash-image-preview" }],',
-    '  "generation_model": "sprite-sheet-creator + google-vertex/gemini-3.1-flash-image-preview",',
+    '  "generation_model": "sprite-sheet-creator + openrouter/google/gemini-3.1-flash-image-preview",',
     '  "sprite_manifest": [{ "name": "player_idle", "category": "character", "dimensions_hint": "32x32 base", "animation_ready": true }],',
     '  "animation_sets": [{ "stable_asset_id": "player", "character_prompt": "Agile platform hero with scarf", "reference_mode": "image_to_image", "reference_image_url": "https://...", "character_seed_url": "https://...", "animations": [{ "animation": "idle", "raw_sheet_url": "https://...", "processed_sheet_url": "https://...", "frame_manifest_url": "https://...", "phaser_descriptor_url": "https://...", "cols": 2, "rows": 2, "vertical_dividers": [50], "horizontal_dividers": [50], "frames": [{ "index": 0, "x": 0, "y": 0, "width": 256, "height": 256, "bounds": { "x": 32, "y": 28, "width": 148, "height": 196 } }] }] }],',
     '  "background_sets": [{ "stable_asset_id": "forest_backdrop", "layers": [{ "variant": "layer_1", "url": "https://...", "width": 1792, "height": 768 }] }],',

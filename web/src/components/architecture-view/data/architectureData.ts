@@ -345,7 +345,7 @@ const AGENT_SERVICES: Record<ArchitectureAgentId, ServiceTemplate[]> = {
       category: "model",
       runtimeType: "openrouter/google/gemini-3.1-pro-preview",
       description:
-        "Jarvis runs on Gemini 3.1 Pro via Vertex AI for planning, scope analysis, and high-level delivery output.",
+        "Jarvis runs on Gemini 3.1 Pro via OpenRouter for planning, scope analysis, and high-level delivery output.",
       notes: [
         "Configured directly in mastra/src/agents/jarvis.ts.",
       ],
@@ -399,7 +399,7 @@ const AGENT_SERVICES: Record<ArchitectureAgentId, ServiceTemplate[]> = {
       category: "model",
       runtimeType: "openrouter/google/gemini-3.1-pro-preview",
       description:
-        "Forge uses Gemini 3.1 Pro via Vertex AI as the reasoning model behind the write-heavy implementation path.",
+        "Forge uses Gemini 3.1 Pro via OpenRouter as the reasoning model behind the write-heavy implementation path.",
       notes: [
         "Configured directly in mastra/src/agents/forge.ts.",
       ],
@@ -436,27 +436,27 @@ const AGENT_SERVICES: Record<ArchitectureAgentId, ServiceTemplate[]> = {
     },
     {
       id: "pixel-openrouter-api",
-      label: "Vertex AI Image API",
-      icon: "VX",
+      label: "OpenRouter Image API",
+      icon: "OR",
       category: "integration",
-      runtimeType: "generateContent with IMAGE response modality",
+      runtimeType: "chat/completions with image modality",
       description:
-        "Pixel calls Google Vertex AI directly for multimodal image generation and asset pack output.",
+        "Pixel calls OpenRouter for multimodal image generation and asset pack output.",
       notes: [
-        "The request carries TEXT and IMAGE response modalities via the Vertex AI generateContent endpoint.",
+        "The request carries text and image modalities via the OpenRouter chat-completions endpoint.",
       ],
       edgeIntensity: "medium",
     },
     {
       id: "pixel-image-model",
-      label: "Gemini 2.0 Flash Exp",
+      label: "Gemini 3.1 Flash Image",
       icon: "IMG",
       category: "model",
-      runtimeType: "gemini-2.0-flash-exp",
+      runtimeType: "google/gemini-3.1-flash-image-preview",
       description:
-        "Default Vertex AI image model used by Pixel for polished UI packs, sprites, and texture generation.",
+        "Default OpenRouter image model used by Pixel for polished UI packs, sprites, and texture generation.",
       notes: [
-        "The model is configurable through VERTEX_IMAGE_MODEL.",
+        "The model is configurable through OPENROUTER_IMAGE_MODEL.",
       ],
       edgeIntensity: "low",
     },
@@ -508,7 +508,7 @@ const AGENT_SERVICES: Record<ArchitectureAgentId, ServiceTemplate[]> = {
       category: "model",
       runtimeType: "openrouter/google/gemini-3.1-flash-lite-preview",
       description:
-        "Checker runs on Gemini 3.1 Flash Lite via Vertex AI for read-only QA and validation reporting.",
+        "Checker runs on Gemini 3.1 Flash Lite via OpenRouter for read-only QA and validation reporting.",
       notes: [
         "Configured directly in mastra/src/agents/checker.ts.",
       ],
