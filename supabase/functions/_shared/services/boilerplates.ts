@@ -130,7 +130,8 @@ export async function seedGameFromBoilerplate(
   const supabase = getSupabaseClient();
   const atoms = boilerplate.atoms_json;
 
-  // 1. Insert all atoms in parallel
+  // 1. Insert all atoms in parallel. Throw on any failure — a partial atom set
+  // produces silent unresolved-reference errors at build time.
   await Promise.all(
     atoms.map(async (atom) => {
       const { error } = await supabase.from("atoms").upsert(
@@ -150,6 +151,9 @@ export async function seedGameFromBoilerplate(
           atom: atom.name,
           error: error.message,
         });
+        throw new Error(
+          `Failed to seed atom "${atom.name}" for boilerplate "${slug}": ${error.message}`,
+        );
       }
     }),
   );
