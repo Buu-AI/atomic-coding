@@ -693,6 +693,48 @@ export function validateCodeQuality(
   return buildReport(atoms.length, failures);
 }
 
+export interface ValidationExternal {
+  name: string;
+  global_name: string;
+}
+
+/**
+ * Fail validation if an installed external is never referenced by any atom.
+ * Installed-but-unused externals are usually a sign of a misconfigured CDN
+ * (e.g. wrong load_type, 404 path) or a planning miss in Task 1/2 — both of
+ * which we want to surface loudly on the first iteration.
+ *
+ * Detection accepts either `window.GlobalName` access or a bare identifier
+ * (`GlobalName.method(...)` / `new GlobalName(...)`). We use word boundaries
+ * so 2-char names (`io`, `PF`) don't false-positive on substrings.
+ */
+export function validateExternalsUsage(
+  atoms: ValidationAtom[],
+  externals: ValidationExternal[],
+): ValidationReport {
+  const failures: ValidationFailure[] = [];
+  if (externals.length === 0) return buildReport(atoms.length, failures);
+
+  const haystack = atoms.map((a) => a.code || "").join("\n\n");
+
+  for (const ext of externals) {
+    if (!ext.global_name) continue;
+    const escaped = ext.global_name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const directRef = new RegExp(`\\b${escaped}\\b`);
+    const windowRef = new RegExp(`window\\s*\\.\\s*${escaped}\\b`);
+    if (directRef.test(haystack) || windowRef.test(haystack)) continue;
+    failures.push({
+      atom: "_externals_audit",
+      rule: "unused_external",
+      message: `Installed external "${ext.name}" (window.${ext.global_name}) is loaded but no atom references it.`,
+      severity: "error",
+      fix_hint: `Add a minimal instantiation atom that calls window.${ext.global_name}, or uninstall the external from this game.`,
+    });
+  }
+
+  return buildReport(atoms.length, failures);
+}
+
 export function mergeValidationReports(
   ...reports: ValidationReport[]
 ): ValidationReport {

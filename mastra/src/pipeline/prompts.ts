@@ -352,7 +352,8 @@ export function buildTaskPrompt(
       "3. Return a JSON object matching the Task 1 Output Schema from your system instructions.",
       "4. Ensure score_tracker is planned with proper wiring.",
       "5. Every game MUST preserve a compliant score system.",
-      "6. Do NOT call upsert-atom — only plan, do not build."
+      "6. For EACH entry in Installed Externals, plan at least one util or feature atom that exercises it via its window global. Suggested mappings: howler_js → audio_manager, matter_js or planck_js → physics_world, cannon_es → physics_world_3d, pathfinding_js → pathfinder, rot_js → dungeon_generator (or rng_seeder when only RNG is needed), gsap → tween_manager, noisejs or simplex_noise → noise_field, seedrandom_js → rng_seeder, socket_io_client → net_client, three_orbit_controls → camera_controls. If a game genuinely cannot use an installed external, note this in `notes` instead of skipping silently.",
+      "7. Do NOT call upsert-atom — only plan, do not build."
     );
   } else if (task.task_number === 3) {
     lines.push(
@@ -406,8 +407,21 @@ export function buildTaskPrompt(
       "   - Adjust descriptions to reference specific game mechanics from the scope",
       "   - Modify inputs/outputs if the scope requires different interfaces",
       "   - Add any missing utility atoms implied by the scope but not in the boilerplate",
-      "5. Use upsert-atom ONLY for atoms that need customization — do NOT re-create atoms that are already correct.",
-      "6. Return JSON matching this exact schema:",
+      "5. Audit Installed Externals (see 'Active Externals' section above). For each installed external whose `window.{global_name}` is NOT referenced by any current atom, create one minimal instantiation atom that exercises it (idempotent init + a single representative call). Examples:",
+      "   - howler_js: `audio_manager` that creates a Howl on demand and exposes play/stop wrappers",
+      "   - matter_js: `physics_world` that creates a Matter.Engine + Runner and exposes addBody",
+      "   - planck_js: `physics_world` that creates a planck.World and exposes step/createBody",
+      "   - cannon_es: `physics_world_3d` that creates a CANNON.World and exposes addBody/step",
+      "   - pathfinding_js: `pathfinder` that wraps PF.Grid + PF.AStarFinder.findPath",
+      "   - rot_js: `dungeon_generator` (or `rng_seeder`) using ROT.Map.Digger or ROT.RNG",
+      "   - gsap: `tween_manager` exposing tweenTo/tweenFrom shortcuts over gsap.to",
+      "   - noisejs / simplex_noise: `noise_field` exposing sample(x,y) via the noise lib",
+      "   - seedrandom_js: `rng_seeder` exposing seed(str) and next() via Math.seedrandom",
+      "   - socket_io_client: `net_client` exposing connect(url), emit(event, data), on(event, cb)",
+      "   - three_orbit_controls: `camera_controls` instantiating OrbitControls on the active camera",
+      "  These atoms do NOT need to be wired into gameplay yet — Tasks 4-6 will compose them. The goal is to guarantee every loaded library is exercised by code so misconfigured externals fail loudly on the first iteration instead of silently.",
+      "6. Use upsert-atom ONLY for atoms that need customization or for the new instantiation atoms above — do NOT re-create atoms that are already correct.",
+      "7. Return JSON matching this exact schema:",
       "```json",
       "{",
       '  "status": "completed",',
@@ -415,7 +429,8 @@ export function buildTaskPrompt(
       '  "genre_slug": "<genre>",',
       '  "atoms_verified": ["<atoms confirmed correct>"],',
       '  "atoms_customized": ["<atoms you modified>"],',
-      '  "atoms_created": ["<new atoms added beyond boilerplate>"],',
+      '  "atoms_created": ["<new atoms added beyond boilerplate, including external-instantiation atoms>"],',
+      '  "externals_wired": ["<external names you added an instantiation atom for>"],',
       '  "existing_atom_structure": { "total_atoms": 0, "atom_names": [] },',
       '  "customization_notes": "<what you changed and why>"',
       "}",

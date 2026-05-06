@@ -10,6 +10,7 @@ import {
   validateInterfaceCompatibility,
   validateReachability,
   validateCodeQuality,
+  validateExternalsUsage,
   type ValidationReport,
   type ValidationSpecs as AtomValidationSpecs,
 } from "../shared/atom-validation.js";
@@ -707,10 +708,10 @@ async function removeBackground(
 async function uploadBundleAsset(args: {
   bytes: Uint8Array;
   contentType: string;
-  gameName: string;
+  gameId: string;
   storagePath: string;
 }): Promise<UploadedBundleAsset> {
-  const path = `${args.gameName}/${args.storagePath.replace(/^\/+/, "")}`;
+  const path = `${args.gameId}/${args.storagePath.replace(/^\/+/, "")}`;
   const supabase = getSupabaseClient();
 
   const { error } = await supabase.storage
@@ -740,7 +741,7 @@ async function uploadBundleAsset(args: {
 }
 
 async function uploadBundleJson(args: {
-  gameName: string;
+  gameId: string;
   storagePath: string;
   payload: Record<string, unknown>;
 }): Promise<UploadedBundleAsset> {
@@ -748,7 +749,7 @@ async function uploadBundleJson(args: {
   return uploadBundleAsset({
     bytes,
     contentType: "application/json",
-    gameName: args.gameName,
+    gameId: args.gameId,
     storagePath: args.storagePath,
   });
 }
@@ -1007,7 +1008,6 @@ export function buildPixelRuntimeIndex(
 
 async function publishRuntimeManifestDocument(args: {
   gameId: string;
-  gameName: string;
   gameFormat: "2d" | "3d" | null;
   pixelManifestUrl: string | null;
   pixelAssetsRevision: number;
@@ -1047,7 +1047,7 @@ async function publishRuntimeManifestDocument(args: {
   };
 
   return uploadBundleJson({
-    gameName: args.gameName,
+    gameId: args.gameId,
     storagePath: "manifest.json",
     payload: manifest,
   });
@@ -1309,7 +1309,7 @@ async function processTask7Output(args: {
           const uploaded = await uploadBundleAsset({
             bytes: source.bytes,
             contentType: source.contentType ?? "image/png",
-            gameName: game.name,
+            gameId: args.gameId,
             storagePath: `ui/${args.warRoomId}/${String(index + 1).padStart(2, "0")}_${stableAssetId}${getExtensionForContentType(source.contentType ?? "image/png")}`,
           });
           canonicalUrl = uploaded.publicUrl;
@@ -1508,7 +1508,7 @@ async function processTask8Output(args: {
       const uploaded = await uploadBundleAsset({
         bytes: canonicalBytes,
         contentType: canonicalContentType,
-        gameName: game.name,
+        gameId: args.gameId,
         storagePath: `pixel/${args.warRoomId}/task8/assets/${String(index + 1).padStart(2, "0")}_${stableAssetId}${getExtensionForContentType(canonicalContentType)}`,
       });
       const canonicalUrl = uploaded.publicUrl;
@@ -1560,7 +1560,7 @@ async function processTask8Output(args: {
       const uploadedSeed = await uploadBundleAsset({
         bytes: characterSeedSource.bytes,
         contentType: characterSeedSource.contentType ?? "image/png",
-        gameName: game.name,
+        gameId: args.gameId,
         storagePath: `pixel/${args.warRoomId}/task8/${stableAssetId}/character_seed${getExtensionForContentType(characterSeedSource.contentType ?? "image/png")}`,
       });
 
@@ -1593,13 +1593,13 @@ async function processTask8Output(args: {
           const uploadedRaw = await uploadBundleAsset({
             bytes: rawSource.bytes,
             contentType: rawSource.contentType ?? "image/png",
-            gameName: game.name,
+            gameId: args.gameId,
             storagePath: `pixel/${args.warRoomId}/task8/${stableAssetId}/sprite_sheets/${animation.animation}_raw${getExtensionForContentType(rawSource.contentType ?? "image/png")}`,
           });
           const uploadedProcessed = await uploadBundleAsset({
             bytes: processedSource.bytes,
             contentType: processedSource.contentType ?? "image/png",
-            gameName: game.name,
+            gameId: args.gameId,
             storagePath: `pixel/${args.warRoomId}/task8/${stableAssetId}/sprite_sheets/${animation.animation}${getExtensionForContentType(processedSource.contentType ?? "image/png")}`,
           });
 
@@ -1618,7 +1618,7 @@ async function processTask8Output(args: {
             })),
           };
           const uploadedFrameManifest = await uploadBundleJson({
-            gameName: game.name,
+            gameId: args.gameId,
             storagePath: `pixel/${args.warRoomId}/task8/${stableAssetId}/frames/${animation.animation}_manifest.json`,
             payload: frameManifest,
           });
@@ -1634,7 +1634,7 @@ async function processTask8Output(args: {
             })),
           });
           const uploadedPhaserDescriptor = await uploadBundleJson({
-            gameName: game.name,
+            gameId: args.gameId,
             storagePath: `pixel/${args.warRoomId}/task8/${stableAssetId}/descriptors/${animation.animation}_phaser_atlas.json`,
             payload: phaserDescriptor,
           });
@@ -1754,7 +1754,7 @@ async function processTask8Output(args: {
           const uploadedLayer = await uploadBundleAsset({
             bytes: source.bytes,
             contentType: source.contentType ?? "image/png",
-            gameName: game.name,
+            gameId: args.gameId,
             storagePath: `pixel/${args.warRoomId}/task8/${stableAssetId}/backgrounds/${layer.variant}${getExtensionForContentType(source.contentType ?? "image/png")}`,
           });
 
@@ -1842,7 +1842,7 @@ async function processTask8Output(args: {
     generatedAssets,
   });
   const uploadedManifest = await uploadBundleJson({
-    gameName: game.name,
+    gameId: args.gameId,
     storagePath: `pixel/${args.warRoomId}/pixel-manifest.json`,
     payload: manifestPayload,
   });
@@ -1895,7 +1895,6 @@ async function processTask8Output(args: {
 
   await publishRuntimeManifestDocument({
     gameId: args.gameId,
-    gameName: game.name,
     gameFormat: args.gameFormat,
     pixelManifestUrl: uploadedManifest.publicUrl,
     pixelAssetsRevision: nextPixelAssetsRevision,
@@ -2206,12 +2205,26 @@ async function runDeterministicValidation(
   const a = atoms || [];
   const d = deps || [];
 
+  // Fetch installed externals so the externals-usage rule can flag any addon
+  // that was loaded but never referenced. Cheap join, runs at most once per
+  // 10s thanks to validationCache below.
+  const { data: externalsRows } = await supabase
+    .from("game_externals")
+    .select("external_registry(name, global_name)")
+    .eq("game_id", gameId);
+  const installedExternals = (externalsRows || [])
+    .map((row: any) => row.external_registry)
+    .filter((entry: any): entry is { name: string; global_name: string } =>
+      Boolean(entry?.name && entry?.global_name)
+    );
+
   const reports = [
     validateStructuralRules(a, d),
     validateScoreSystemRules(a, d),
     validateInterfaceCompatibility(a, d),
     validateReachability(a, d),
     validateCodeQuality(a),
+    validateExternalsUsage(a, installedExternals),
   ];
 
   if (gameSpecs) {

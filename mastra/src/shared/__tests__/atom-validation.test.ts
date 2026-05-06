@@ -6,6 +6,7 @@ import {
   validateInterfaceCompatibility,
   validateReachability,
   validateCodeQuality,
+  validateExternalsUsage,
   mergeValidationReports,
   normalizeType,
   type ValidationAtom,
@@ -557,6 +558,81 @@ describe("validateCodeQuality", () => {
     expect(report.failures).toContainEqual(
       expect.objectContaining({ atom: "secure_runtime", rule: "runtime_lockdown_forbidden", severity: "error" })
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// validateExternalsUsage
+// ---------------------------------------------------------------------------
+describe("validateExternalsUsage", () => {
+  it("passes when no externals are installed", () => {
+    const report = validateExternalsUsage(
+      [makeAtom({ name: "a", code: "function a() {}" })],
+      [],
+    );
+    expect(report.passed).toBe(true);
+    expect(report.failures).toHaveLength(0);
+  });
+
+  it("passes when every external is referenced (window.X form)", () => {
+    const report = validateExternalsUsage(
+      [
+        makeAtom({
+          name: "audio_manager",
+          code: "function audio_manager() { return new window.Howler.Howl({src: ['x.mp3']}); }",
+        }),
+      ],
+      [{ name: "howler_js", global_name: "Howler" }],
+    );
+    expect(report.passed).toBe(true);
+  });
+
+  it("passes when external is referenced as a bare identifier", () => {
+    const report = validateExternalsUsage(
+      [
+        makeAtom({
+          name: "physics_world",
+          code: "function physics_world() { return Matter.Engine.create(); }",
+        }),
+      ],
+      [{ name: "matter_js", global_name: "Matter" }],
+    );
+    expect(report.passed).toBe(true);
+  });
+
+  it("fails with severity=error when an installed external has zero references", () => {
+    const report = validateExternalsUsage(
+      [makeAtom({ name: "score_tracker", code: "function score_tracker() { return 0; }" })],
+      [{ name: "gsap", global_name: "gsap" }],
+    );
+    expect(report.passed).toBe(false);
+    expect(report.failures).toHaveLength(1);
+    expect(report.failures[0].rule).toBe("unused_external");
+    expect(report.failures[0].severity).toBe("error");
+    expect(report.failures[0].message).toContain("gsap");
+  });
+
+  it("does not false-positive on substrings (short global names use word boundaries)", () => {
+    // "io" is the socket.io global. "ratio" must not match.
+    const report = validateExternalsUsage(
+      [makeAtom({ name: "calc", code: "function calc() { const ratio = 0.5; return ratio; }" })],
+      [{ name: "socket_io_client", global_name: "io" }],
+    );
+    expect(report.passed).toBe(false);
+    expect(report.failures[0].rule).toBe("unused_external");
+  });
+
+  it("emits one failure per unused external, not one per atom", () => {
+    const atoms = [
+      makeAtom({ name: "a", code: "function a() {}" }),
+      makeAtom({ name: "b", code: "function b() {}" }),
+      makeAtom({ name: "c", code: "function c() {}" }),
+    ];
+    const report = validateExternalsUsage(atoms, [
+      { name: "gsap", global_name: "gsap" },
+      { name: "howler_js", global_name: "Howler" },
+    ]);
+    expect(report.failures).toHaveLength(2);
   });
 });
 
