@@ -235,12 +235,12 @@ Deno.serve(async (req: Request) => {
       pixel_index: pixelIndex,
     };
 
-    // 8. Upload bundle + manifest to Supabase Storage (game-scoped paths)
+    // 8. Upload bundle + manifest to Supabase Storage (game-scoped paths keyed by game ID)
     const bundleBlob = new Blob([bundle], { type: "application/javascript" });
     const manifestBlob = new Blob([JSON.stringify(manifest, null, 2)], { type: "application/json" });
-    const latestPath = `${game.name}/latest.js`;
-    const versionedPath = `${game.name}/build_${buildId}.js`;
-    const manifestPath = `${game.name}/manifest.json`;
+    const latestPath = `${gameId}/latest.js`;
+    const versionedPath = `${gameId}/build_${buildId}.js`;
+    const manifestPath = `${gameId}/manifest.json`;
 
     const { error: uploadError } = await supabase.storage
       .from("bundles")
@@ -253,22 +253,28 @@ Deno.serve(async (req: Request) => {
     if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
 
     // Save a versioned copy of the bundle
-    await supabase.storage
+    const { error: versionedUploadError } = await supabase.storage
       .from("bundles")
       .upload(versionedPath, new Blob([bundle], { type: "application/javascript" }), {
         cacheControl: "3600",
         upsert: true,
         contentType: "application/javascript",
       });
+    if (versionedUploadError) {
+      throw new Error(`Versioned bundle upload failed: ${versionedUploadError.message}`);
+    }
 
-    // Upload manifest
-    await supabase.storage
+    // Upload manifest — must succeed; the player needs it to load externals.
+    const { error: manifestUploadError } = await supabase.storage
       .from("bundles")
       .upload(manifestPath, manifestBlob, {
         cacheControl: "0",
         upsert: true,
         contentType: "application/json",
       });
+    if (manifestUploadError) {
+      throw new Error(`Manifest upload failed: ${manifestUploadError.message}`);
+    }
 
     // 9. Get the public URL
     const { data: urlData } = supabase.storage

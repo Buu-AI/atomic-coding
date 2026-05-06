@@ -32,11 +32,11 @@ export type LeaderboardPeriod = "day" | "week" | "lifetime";
 // Service functions
 // =============================================================================
 
-/** Submit a score for a game */
+/** Submit a score for a game. `userId` is null for anonymous players. */
 export async function submitScore(
   gameId: string,
   score: number,
-  userId: string,
+  userId: string | null,
   metadata?: Record<string, unknown>,
 ): Promise<Score> {
   // Validate score

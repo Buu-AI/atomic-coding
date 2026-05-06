@@ -183,7 +183,6 @@ function buildPixelManifestPayload(
 }
 
 async function publishRuntimeManifest(args: {
-  gameName: string;
   room: NonNullable<Awaited<ReturnType<typeof warrooms.getWarRoom>>>;
   pixelManifestUrl: string | null;
   pixelAssetsRevision: number;
@@ -209,7 +208,7 @@ async function publishRuntimeManifest(args: {
     pixel_index: args.pixelIndex,
   };
 
-  const path = `${args.gameName}/manifest.json`;
+  const path = `${args.room.game_id}/manifest.json`;
   const bytes = new TextEncoder().encode(`${JSON.stringify(manifest, null, 2)}\n`);
   const supabase = getSupabaseClient();
   const { error } = await supabase.storage
@@ -225,13 +224,12 @@ async function publishRuntimeManifest(args: {
 }
 
 async function publishPixelManifest(
-  gameName: string,
   room: NonNullable<Awaited<ReturnType<typeof warrooms.getWarRoom>>>,
 ) {
   const generatedAssets = await warrooms.listGeneratedAssets(room.id);
   const payload = buildPixelManifestPayload(room, generatedAssets);
   const runtimeIndex = buildPixelRuntimeIndex(generatedAssets);
-  const path = `${gameName}/pixel/${room.id}/pixel-manifest.json`;
+  const path = `${room.game_id}/pixel/${room.id}/pixel-manifest.json`;
   const bytes = new TextEncoder().encode(`${JSON.stringify(payload, null, 2)}\n`);
   const supabase = getSupabaseClient();
   const { error } = await supabase.storage
@@ -290,7 +288,6 @@ async function publishPixelManifest(
   }
 
   await publishRuntimeManifest({
-    gameName,
     room,
     pixelManifestUrl: data.publicUrl,
     pixelAssetsRevision: nextRevision,
@@ -820,13 +817,15 @@ app.post("/games/:name/unpublish", requireAuth(), async (c) => {
 // Scores & Leaderboard (scoped to game)
 // =============================================================================
 
-/** POST /games/:name/scores -- submit a score */
+/** POST /games/:name/scores -- submit a score (auth optional; anonymous = null user_id) */
 app.post("/games/:name/scores", async (c) => {
   try {
     const authUser = await verifyAuthToken(c.req.raw);
-    if (!authUser) return c.json({ error: "Unauthorized" }, 401);
+    const userId = authUser?.userId ?? null;
 
-    const rateLimited = await checkRateLimit(c, "score", authUser.userId);
+    // Rate limit by user when authed, otherwise by client IP.
+    const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const rateLimited = await checkRateLimit(c, "score", userId ?? `ip:${ip}`);
     if (rateLimited) return rateLimited;
 
     const gameId = c.get("gameId") as string;
@@ -834,7 +833,7 @@ app.post("/games/:name/scores", async (c) => {
     const result = await scores.submitScore(
       gameId,
       body.score,
-      authUser.userId,
+      userId,
       body.metadata,
     );
     return c.json(result, 201);
@@ -1120,7 +1119,7 @@ app.patch("/games/:name/warrooms/:id/assets/:assetId/layout", requireAuth(), asy
         frames: body.frames,
       },
     });
-    await publishPixelManifest(c.req.param("name"), room);
+    await publishPixelManifest(room);
 
     await warrooms.recordEvent(room.id, "pixel_asset_layout_updated", "pixel", 8, {
       asset_id: asset.id,
