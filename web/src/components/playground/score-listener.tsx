@@ -2,22 +2,17 @@
 
 import { useEffect, useRef, useCallback } from "react";
 import { submitScore } from "@/lib/api";
-import { useAppAuth } from "@/lib/auth-provider";
 
 interface ScoreListenerProps {
   gameName: string;
-  requireAuth?: boolean;
 }
 
 /**
  * Listens for postMessage SCORE_UPDATE events from the game iframe,
- * debounces them, and submits to the API.
+ * debounces them, and submits to the API. Anonymous players are accepted
+ * — the server stores them with null user_id.
  */
-export function ScoreListener({
-  gameName,
-  requireAuth = true,
-}: ScoreListenerProps) {
-  const { user, authenticated, ready, isDevBypass } = useAppAuth();
+export function ScoreListener({ gameName }: ScoreListenerProps) {
   const lastSubmitRef = useRef(0);
   const pendingScoreRef = useRef<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -26,18 +21,13 @@ export function ScoreListener({
     const score = pendingScoreRef.current;
     if (score === null) return;
 
-    if (requireAuth && !isDevBypass && (!ready || !authenticated || !user?.id)) {
-      pendingScoreRef.current = null;
-      return;
-    }
-
     pendingScoreRef.current = null;
     lastSubmitRef.current = Date.now();
 
     submitScore(gameName, score).catch((err) => {
       console.warn("[score-listener] Failed to submit score:", err);
     });
-  }, [authenticated, gameName, ready, requireAuth, user?.id]);
+  }, [gameName]);
 
   useEffect(() => {
     function handleMessage(event: MessageEvent) {

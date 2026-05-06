@@ -31,7 +31,7 @@ export function SettingsTab({ gameName }: SettingsTabProps) {
   }
 
   const bundleUrl = game.active_build_id
-    ? `${SUPABASE_URL}/storage/v1/object/public/bundles/${gameName}/latest.js`
+    ? `${SUPABASE_URL}/storage/v1/object/public/bundles/${game.id}/latest.js`
     : null;
 
   return (

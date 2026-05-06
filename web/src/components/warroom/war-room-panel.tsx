@@ -634,8 +634,8 @@ export function WarRoomPanel({
                             <div className="rounded-[1.3rem] border border-white/10 bg-black/20 p-4">
                               <p className="text-[11px] uppercase tracking-[0.18em] text-white/35">Validation</p>
                               <div className="mt-3 space-y-2">
-                                {view.validationSummaries.map((entry) => (
-                                  <div key={entry} className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2 text-sm text-white/68">
+                                {view.validationSummaries.map((entry, idx) => (
+                                  <div key={`${idx}-${entry}`} className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2 text-sm text-white/68">
                                     {entry}
                                   </div>
                                 ))}
@@ -647,8 +647,8 @@ export function WarRoomPanel({
                             <div className="rounded-[1.3rem] border border-amber-300/18 bg-amber-500/[0.08] p-4">
                               <p className="text-[11px] uppercase tracking-[0.18em] text-amber-100/80">Warnings</p>
                               <div className="mt-3 space-y-2">
-                                {view.warnings.map((warning) => (
-                                  <div key={warning} className="rounded-xl border border-amber-300/12 bg-black/15 px-3 py-2 text-sm text-amber-50/82">
+                                {view.warnings.map((warning, idx) => (
+                                  <div key={`${idx}-${warning}`} className="rounded-xl border border-amber-300/12 bg-black/15 px-3 py-2 text-sm text-amber-50/82">
                                     {warning}
                                   </div>
                                 ))}
@@ -660,8 +660,8 @@ export function WarRoomPanel({
                             <div className="rounded-[1.3rem] border border-rose-300/18 bg-rose-500/[0.08] p-4">
                               <p className="text-[11px] uppercase tracking-[0.18em] text-rose-100/82">Errors</p>
                               <div className="mt-3 space-y-2">
-                                {view.errors.map((entry) => (
-                                  <div key={entry} className="rounded-xl border border-rose-300/12 bg-black/15 px-3 py-2 text-sm text-rose-50/82">
+                                {view.errors.map((entry, idx) => (
+                                  <div key={`${idx}-${entry}`} className="rounded-xl border border-rose-300/12 bg-black/15 px-3 py-2 text-sm text-rose-50/82">
                                     {entry}
                                   </div>
                                 ))}

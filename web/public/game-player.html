@@ -134,9 +134,48 @@
     const GAME_NAME = params.get('game') || 'my-game';
     const GAME_ID = params.get('gameId') || '';
     const REQUESTED_FORMAT = params.get('format') || '';
-    const STORAGE_BASE = `${SUPABASE_URL}/storage/v1/object/public/bundles/${GAME_NAME}`;
-    const MANIFEST_URL = `${STORAGE_BASE}/manifest.json`;
-    const BUNDLE_URL = `${STORAGE_BASE}/latest.js`;
+    // Storage paths are keyed by game id (UUID) — game names can contain spaces / be renamed.
+    const STORAGE_BASE = GAME_ID
+      ? `${SUPABASE_URL}/storage/v1/object/public/bundles/${GAME_ID}`
+      : null;
+    const MANIFEST_URL = STORAGE_BASE ? `${STORAGE_BASE}/manifest.json` : '';
+    const BUNDLE_URL = STORAGE_BASE ? `${STORAGE_BASE}/latest.js` : '';
+
+    // Single shared Supabase client — used for realtime AND for the
+    // pre-flight active_build_id check that gates manifest fetches.
+    const sharedSupabase = SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase
+      ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+      : null;
+
+    // Cache the latest known active_build_id so we don't re-query before
+    // every manifest fetch. Set on initial load and refreshed by realtime.
+    let cachedActiveBuildId = undefined;
+
+    async function getActiveBuildId() {
+      if (cachedActiveBuildId !== undefined) return cachedActiveBuildId;
+      if (!sharedSupabase || !GAME_ID) {
+        cachedActiveBuildId = null;
+        return null;
+      }
+      try {
+        const { data, error } = await sharedSupabase
+          .from('games')
+          .select('active_build_id')
+          .eq('id', GAME_ID)
+          .maybeSingle();
+        if (error) {
+          // On query failure, fall back to optimistic fetch — preserves
+          // prior behavior so we don't regress published / read-restricted setups.
+          cachedActiveBuildId = null;
+          return 'unknown';
+        }
+        cachedActiveBuildId = data && data.active_build_id ? data.active_build_id : null;
+        return cachedActiveBuildId;
+      } catch (err) {
+        console.warn('Failed to check active_build_id:', err);
+        return 'unknown';
+      }
+    }
 
     const statusDot = document.getElementById('status-dot');
     const statusText = document.getElementById('status-text');
@@ -746,6 +785,9 @@
     }
 
     async function refreshPixelAssetsFromManifest() {
+      // Skip the fetch (and its inevitable 400) when no build exists yet.
+      const activeBuildId = await getActiveBuildId();
+      if (activeBuildId === null) return null;
       try {
         const manifestRes = await fetch(`${MANIFEST_URL}?t=${Date.now()}`);
         if (!manifestRes.ok) return null;
@@ -774,10 +816,31 @@
       window.GAME.mouse.justUp = false;
       destroyExistingRuntime();
       if (currentScript) { currentScript.remove(); currentScript = null; }
+      if (!STORAGE_BASE) {
+        setStatus('error', 'Missing gameId — cannot resolve bundle path');
+        return;
+      }
+      // Don't hit storage until we know a build exists — Supabase Storage
+      // returns HTTP 400 for missing public objects, which clutters the
+      // console even though we handle it gracefully below.
+      const activeBuildId = await getActiveBuildId();
+      if (activeBuildId === null) {
+        setStatus('connected', 'No build yet. Create some atoms!');
+        return;
+      }
       try {
         const manifestRes = await fetch(`${MANIFEST_URL}?t=${Date.now()}`);
-        let manifest = null;
-        if (manifestRes.ok) manifest = await manifestRes.json();
+        if (!manifestRes.ok) {
+          // Without a manifest we can't load externals (THREE, Phaser, …), so the bundle
+          // would crash on first reference. Surface a clear state instead of executing it.
+          if (manifestRes.status === 404 || manifestRes.status === 400) {
+            setStatus('connected', 'No build yet. Create some atoms!');
+          } else {
+            setStatus('error', `Manifest load failed (HTTP ${manifestRes.status})`);
+          }
+          return;
+        }
+        const manifest = await manifestRes.json();
         const manifestExternals = normalizeManifestExternals(manifest && manifest.externals);
         const nextExternalSignature = getExternalSignature(manifestExternals);
         const runtime = resolveRuntime(manifest);
@@ -834,7 +897,8 @@
 
     function setupRealtime() {
       if (!SUPABASE_URL) { setStatus('error', 'No Supabase URL'); return; }
-      const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      if (!sharedSupabase) { setStatus('error', 'Supabase client unavailable'); return; }
+      const supabase = sharedSupabase;
       const realtimeChannel = supabase.channel(`builds:${GAME_ID || GAME_NAME}`);
       const realtimeFilter = {
         event: 'UPDATE',
@@ -849,6 +913,9 @@
           const nextStatus = payload.new && payload.new.status;
           if (GAME_ID && payload.new && payload.new.game_id !== GAME_ID) return;
           if (nextStatus === 'success' && previousStatus !== 'success') {
+            // First successful build for this game — bust the cache so
+            // loadBundle() actually fetches the manifest this time.
+            cachedActiveBuildId = payload.new && payload.new.id ? payload.new.id : 'unknown';
             loadBundle();
           }
         });

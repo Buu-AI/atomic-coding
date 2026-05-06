@@ -366,7 +366,9 @@ export async function submitScore(
   gameName: string,
   score: number
 ): Promise<void> {
-  await apiFetch(`/games/${encodeURIComponent(gameName)}/scores`, {
+  // Anonymous players are accepted — the server stores them with null user_id.
+  // Use publicApiFetch so a missing/expired token doesn't 401 client-side.
+  await publicApiFetch(`/games/${encodeURIComponent(gameName)}/scores`, {
     method: "POST",
     body: JSON.stringify({ score }),
   });

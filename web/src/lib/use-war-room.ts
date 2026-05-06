@@ -83,7 +83,11 @@ export function useWarRoom(
   }, [refresh]);
 
   const processEvent = useCallback((event: WarRoomEvent) => {
-    setEvents((prev) => [...prev, event]);
+    // Dedup by id — initial REST fetch can race with realtime INSERTs, and
+    // resubscribe (e.g. after a connection blip) can replay events that are
+    // already in state. Without this, React surfaces duplicate-key warnings
+    // and downstream computeAgentViews counts the same event twice.
+    setEvents((prev) => (prev.some((e) => e.id === event.id) ? prev : [...prev, event]));
     setTasks((prev) => applyWarRoomEvent(prev, event));
 
     if (event.event_type === "war_room_cancelled") {
