@@ -219,7 +219,19 @@ export function LiveEventFeed({ events }: LiveEventFeedProps) {
 
   if (safeEvents.length === 0) return null;
 
-  const sorted = [...safeEvents].reverse();
+  // Defensive dedupe by id. AnimatePresence keeps exiting children mounted
+  // for their exit transition; if any upstream code path leaks a duplicate,
+  // React surfaces a duplicate-key warning here (the only place that uses
+  // event.id as a key). Stripping dupes at the render boundary keeps the
+  // warning from reappearing if a future code path reintroduces one.
+  const seenIds = new Set<string>();
+  const sorted: WarRoomEvent[] = [];
+  for (let i = safeEvents.length - 1; i >= 0; i--) {
+    const event = safeEvents[i];
+    if (!event || seenIds.has(event.id)) continue;
+    seenIds.add(event.id);
+    sorted.push(event);
+  }
   const visible = showAll ? sorted : sorted.slice(0, 3);
   const hiddenCount = sorted.length - 3;
 
